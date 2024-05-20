@@ -6,6 +6,8 @@
 
 const isFirefox = !!window.InternalError;
 
+const isChromeApp = () => !!chrome.runtime.id;
+
 const clearCookies = document.cookie.split(';').forEach(cookie => document.cookie = cookie
         .replace(/^ +/, '')
         .replace(/=.*/, `=;expires=${new Date(0).toUTCString()};path=/`)

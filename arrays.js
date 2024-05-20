@@ -24,11 +24,31 @@ const closestValueInArray = (arr, n) => arr.sort((a, b) => Math.abs(a - n) - Mat
 // Given two arrays, returns an array of the values which appear in both
 const getArrayIntersections = (arr1, ...arr2) => [...new Set(arr1)].filter((v) => arr2.every((b) => b.includes(v)));
 
+// break an array into "chunks"
+const chunk = (array, size = 1) => {
+  const result = [];
+  for (let i = 0; i < array.length; i += size) {
+    result.push(array.slice(i, i + size));
+  }
+  return result;
+};
+
+// Usage: steps([0,1,...,100], 10) // gives [10,20,...,100]
+const steps = (arr, steps, mode = 'max', offset = 0)
+  => chunk(arr, arr.length / steps).map(newarr
+    => Math[mode](...newarr) + offset + (mode === 'max' ? 1 : 0));
+
 // Combine multiple arrays into one
 const combineArrays = (...arrays) => [].concat(...arrays);
 
 // Remove all falsey values from an array
-const compactArray = arr => arr.filter(a => a === 0 || !!a);
+const compactArray = arr => arr.filter(Boolean);
+
+// Creates an array of array values from arr1 that are not included in arr2
+const difference = (arr1, arr2) => arr1.filter(x => !arr2.includes(x));
+
+// Recursive array flatten
+const flattened = arr => arr.flat(Infinity);
 
 // shuffles the given array
 const shuffleArray = (arr) => arr.sort(() => 0.5 - Math.random());
@@ -60,6 +80,9 @@ const indexOfMax = (arr) => arr.reduce((prev, curr, i, a) => (curr > a[prev] ? i
 // get the index of the lowest value in the given array
 const indexOfMin = (arr) => arr.reduce((prev, curr, i, a) => (curr < a[prev] ? i : prev), 0);
 
+// gets the index of `arr`, wraps around if you're out of bounds
+const wrappedIndex = (arr, i) => (i % arr.length + arr.length) % arr.length || 0;
+
 // returns the highest value in an array
 const highestValueFromArray = arr => Math.max(...arr);
 
@@ -82,6 +105,9 @@ const arraysToCartesianProduct = (a, b) => a.reduce((p, x) => [...p, ...b.map(y 
 //      [7, 8, 9], //  [3, 6, 9],
 //    ]);
 const transposeMatrix = (matrix) => matrix[0].map((col, i) => matrix.map((row) => row[i]));
+
+// Changes [['a', 1],['b', 2 ]]  into  { 'a': 1, 'b': 2 }
+const fromPairs = arr => Object.fromEntries(arr)
 
 // unzip([ ['a', 1], ['b', 2], ['c', 3] ]);  //  returns [['a', 'b', 'c'], [1, 2, 3]]
 const unzipArray = (arr) => arr.reduce((acc, c) => (c.forEach((v, i) => acc[i].push(v)), acc), Array.from({ length: Math.max(...arr.map((a) => a.length)) }, (_) => []));
@@ -114,6 +140,12 @@ const toIndexedObj = arr => arr.reduce((acc, it) => (acc[it.id] = it, acc), {});
 
 // count the number of times a given object prop occurs, in an arry of objects
 const countByKey = (arr, key) => arr.reduce((prev, curr) => ((prev[curr[key]] = ++prev[curr[key]] || 1), prev), {});
+
+// find the first object containing the given key
+const findByKey = (arr, key) => arr.find(el => !!el[key]);
+
+// find the first object that matches the given key/value pair
+const findByValue = (arr, key, value) => arr.find(el => el[key] === value);
 
 // get all values of the given object property, in an array of objects
 const getValuesByKey = (arr, key) => arr.map((obj) => obj[key]);

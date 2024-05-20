@@ -3,6 +3,8 @@
 const { PI, cos, sin, tan, atan2 } = Math;
 const pi = Math.PI;
 
+const degreesPerRad = 180 / Math.PI;
+
 // round num to given decimal places
 const decimalFormat = (num, places) => ~~(Math.pow(10, places) * num) / Math.pow(10, places);
 
@@ -31,7 +33,7 @@ const clamp = (num, min, max) => {
 //   euclideanDistance([1, 1, 1], [2, 3, 2]); // ~2.4495
 const euclideanDistance = (a, b) => Math.hypot(...Object.keys(a).map(k => b[k] - a[k]));
 
-// Get the distance between two 2d points 
+// Get the distance between two 2d points
 const manhattanDistance = (x1, y1, x2, y2) => Math.abs(x2–x1) + Math.abs(y2–y1);
 
 // Get odd or even numbers only
@@ -58,6 +60,21 @@ const rescaleToPercent = (num, min, max) => rescale(num, min,max, 0,1.0);
 // Round to given precision
 const roundTo = (num, x) => Math.round((num - 10) / x) * x;
 
+// alternative to the above
+function round(number, precision = 0) {
+  const factor = 10**precision;
+  return Math.round(number * factor) / factor;
+}
+
+// floor a number with the given precision
+function floor(number, precision = 0) {
+  const factor = 10**precision;
+  return Math.floor(number * factor) / factor;
+}
+
+// get a random float between min and max
+const randomBetween = (min, max) => min + Math.random() * (max - min);
+
 // returns a -1 for negative numbers, and 1 for positive numbers
 const sign = (x) => typeof x === 'number' ? x ? x < 0 ? -1 : 1 : 0 : NaN;
 
@@ -68,7 +85,7 @@ const kmToMiles = (km) => km * 0.621371192;
 const milesToKm = (mi) => mi * 1.609344;
 const kmToNauticalMiles = km => km / 1.852216;
 
-// conversion factors 
+// conversion factors
 const temperatureConversion = {
   c: 1,
   celcius: 1,
@@ -166,3 +183,41 @@ const convertArea = (metersSquared, targetUnit = 'm') => {
     if (!factor) throw new Error('Invalid unit used for area conversion.');
     return squareMeters * factor;
 };
+
+
+
+function getDistanceFromOrigin(...dimensions){
+	return Math.sqrt(dimensions.map(x => x*x).reduce((previous, current) => current + previous, 0));
+}
+
+
+function normalizeAngle(angle) {
+	if (angle < 0) {
+		return TWO_PI - (Math.abs(angle) % TWO_PI);
+	}
+	return angle % TWO_PI;
+}
+
+
+function polarToCartesian(r, theta, cx = 0, cy = 0){
+	return [r * Math.cos(theta) + cx, r * Math.sin(theta) + cy];
+}
+
+function cartesianToPolar(x, y, cx = 0, cy = 0) {
+	return [Math.sqrt((x - cx) ** 2 + (y - cy) ** 2), Math.atan2((y - cy), (x - cx))];
+}
+
+//order matters! CCW from bottom to top
+function triangleNormal(pointA, pointB, pointC) {
+	const vector1 = subtractVector(pointC, pointA);
+	const vector2 = subtractVector(pointB, pointA);
+	return normalizeVector(crossVector(vector1, vector2));
+}
+
+function triangleCentroid(pointA, pointB, pointC) {
+	return [
+		(pointA[0] + pointB[0] + pointC[0]) / 3,
+		(pointA[1] + pointB[1] + pointC[1]) / 3,
+		(pointA[2] + pointB[2] + pointC[2]) / 3,
+	];
+}

@@ -1,11 +1,11 @@
-// NOTE: 
+// NOTE:
 // ----------------------------------------------------------------------------
 //
 // ** When a key/value structure is needed, Map should be preferred to Object. **
 //
-//   It’s possible to create Objects in JavaScript that don’t have a prototype. 
-//   It requires the usage of Object.create(). Objects created through this 
-//   API won’t have the __proto__ and constructor attributes. 
+//   It’s possible to create Objects in JavaScript that don’t have a prototype.
+//   It requires the usage of Object.create(). Objects created through this
+//   API won’t have the __proto__ and constructor attributes.
 
 // "Prototype pollution" attacks
 // Creating Objects in this way can help prevent "prototype pollution" attacks:
@@ -25,7 +25,7 @@
     ({}).test // remains undefined
 
 
-// The Object.seal() method is similar, but still allows changing the values 
+// The Object.seal() method is similar, but still allows changing the values
 // of existing properties. Use it on your own Objects after adding the desired
 // or required properties.
 
@@ -35,9 +35,32 @@
 // ----------------------------------------------------------------------------
 
 //
-// Functions for working with Objects 
+// Functions for working with Objects
 //
 
+
+// usage:
+// mapKeys({ foo: 2, bar: 3 }, k => `prefix_${k}`)
+// returns { prefix_foo: 2, prefix_bar: 3 }
+function mapKeys(obj, fn) {
+  const newObj = {};
+  for (const [key, value] of Object.entries(obj)) {
+    newObj[fn(key)] = value;
+  }
+  return newObj;
+}
+
+
+// usage:
+// mapValues({ a: 2, b: 3 }, x => x**2)
+// returns { a: 4, b: 9 }
+function mapValues(obj, fn) {
+  const newObj = {};
+  for (const [key, value] of Object.entries(obj)) {
+    newObj[key] = fn(value);
+  }
+  return newObj;
+}
 
 // clone the given object, return the cloned object
 const cloneObj = obj => typeof structuredClone === 'function' ? structuredClone(obj) : JSON.parse(JSON.stringify(obj));
@@ -50,15 +73,15 @@ const applyDefaults = (obj, defaults) => ({ ...defaults, ...obj });
 // Validate the given object against the given schema.
 // Returns an array of errors if the object fails validation.
 //
-// Usage: 
+// Usage:
 //
-//    const obj = { 
-//      name: 'bob', 
-//      age:  20, 
-//      list: [1, 2, 3], 
+//    const obj = {
+//      name: 'bob',
+//      age:  20,
+//      list: [1, 2, 3],
 //    };
-//    const schema = { 
-//      name: 'string',                                         // expect typeof === 'string' 
+//    const schema = {
+//      name: 'string',                                         // expect typeof === 'string'
 //      age:  val => typeof val === 'number' && val > 17,       // expect n is a number over 17
 //      list: arr => arr.every(val => typeof val === 'number'), // expect array containing numbers only
 //    };
@@ -92,16 +115,16 @@ const validate = (obj, schema) => {
 }
 
 
-// Create a "safe" object, that is protected against prototype pollution, 
-// sealed by default (no new props can be added), and that can optionally 
-// validate any changes to itself against its given schema - changes are 
+// Create a "safe" object, that is protected against prototype pollution,
+// sealed by default (no new props can be added), and that can optionally
+// validate any changes to itself against its given schema - changes are
 // only allowed to the object if valid, according to the schema.
 //
 // Usage:
-// 
+//
 // const obj = { name: 'bob', age: 20 };
-// const schema = { 
-//   name: 'string', 
+// const schema = {
+//   name: 'string',
 //   age: val => typeof val === 'number' && val > 17,
 // };
 // const myObj = safeObject(obj, schema);
@@ -110,7 +133,7 @@ const validate = (obj, schema) => {
 // myObj.baz = 'foo'; // throws Error - the property 'baz' is unknown to the schema.
 //
 const safeObject = (data = {}, schema = undefined, sealed = true, frozen = false) => {
-  // create an object to return, with a null prototype, and also prevent 
+  // create an object to return, with a null prototype, and also prevent
   // any changes to its prototype and constructor.
   const obj = Object.create(null);
   Object.freeze(obj.prototype);
@@ -126,13 +149,13 @@ const safeObject = (data = {}, schema = undefined, sealed = true, frozen = false
         throw Error(err.msg);
       }
     }
-  } 
+  }
   else if (typeof schema === 'object') {
     // for each property in the schema
     for (const [key, val] of Object.entries(schema)) {
-      // 1. Whenever `obj[key]` changes, re-run a built-in validator that checks 
+      // 1. Whenever `obj[key]` changes, re-run a built-in validator that checks
       //    the value against what is expected in `schema[key]`.
-      // 2. Only update `obj` if the new property or value is valid, according to 
+      // 2. Only update `obj` if the new property or value is valid, according to
       //    `schema`, else, throw an error.
       Object.defineProperty(obj, key, {
         enumerable: true,
@@ -159,18 +182,38 @@ const safeObject = (data = {}, schema = undefined, sealed = true, frozen = false
   }
 
   // "Seal" the object
-  // Attempting to add or delete properties to a "sealed" object, or to convert a data property  
+  // Attempting to add or delete properties to a "sealed" object, or to convert a data property
   // to an accessor (getter/setter), or vice versa, will fail.
   // The values of sealed "data properties" (regular properties) can still be changed as normal.
   if (sealed === true) Object.seal(obj);
 
   // "Freeze" the object
-  // Prevent extensions (new properties), deletions, and make existing properties non-writable and 
+  // Prevent extensions (new properties), deletions, and make existing properties non-writable and
   // non-configurable. More simply - a frozen object cannot be changed at all.
   if (frozen === true) Object.freeze(obj);
-  
+
   return obj;
 };
 
+
+function deepClone(obj) {
+	if(Array.isArray(obj)){
+		const temp = [];
+		for (let i = 0; i < obj.length; i++) {
+			temp.push(deepClone(obj[i]));
+		}
+		return temp;
+	}
+	if(typeof(obj) === "object" && obj !== null){
+		const temp = {};
+		for (let key in obj) {
+		  if (obj.hasOwnProperty(key)) {
+			temp[key] = deepClone(obj[key]);
+		  }
+		}
+		return temp;
+	}
+	return obj;
+}
 
 
