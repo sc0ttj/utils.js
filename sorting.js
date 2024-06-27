@@ -50,7 +50,7 @@ const sortBy = (prop, order) =>
 //   const sortedData = array.sort(byDateThenName);
 const sortOrder = (...sortFuncs) => 
   (a, b) => {
-    for (sort of sortFuncs) {
+    for (const sort of sortFuncs) {
       let res = sort(a, b);
       if (res !== 0) return res; // items not equal (in sorting terms) so no more criteria to apply
     }
