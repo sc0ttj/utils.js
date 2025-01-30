@@ -249,6 +249,16 @@ const quartile75 = arr => quantile(arr, 0.75);
 const interQuartileRange = arr => quantile(arr, 0.75) - quantile(arr, 0.25);
 
 
+// get a uniformly distributed random integer
+function randi(min, max) {
+  return Math.floor(Math.random()*(max-min) + min);
+}
+
+// get a uniformly distributed random number
+function randf(min, max) {
+  return Math.random()*(max-min) + min;
+}
+
 // Normal distribution random number:
 // A random variable with a Gaussian distribution is said to be normally distributed, 
 // and is called a normal deviate. 
