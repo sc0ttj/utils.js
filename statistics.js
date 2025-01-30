@@ -248,6 +248,27 @@ const quartile75 = arr => quantile(arr, 0.75);
 // the difference between the third quartile and first quartile
 const interQuartileRange = arr => quantile(arr, 0.75) - quantile(arr, 0.25);
 
+
+// Normal distribution random number:
+// A random variable with a Gaussian distribution is said to be normally distributed, 
+// and is called a normal deviate. 
+// Normal distributions are important in statistics and are often used in the natural 
+// and social sciences to represent real-valued random variables whose distributions 
+// are not known.
+const randn = (mean, variance) => {
+  var V1, V2, S;
+  do {
+    var U1 = Math.random();
+    var U2 = Math.random();
+    V1 = 2 * U1 - 1;
+    V2 = 2 * U2 - 1;
+    S = V1 * V1 + V2 * V2;
+  } while (S > 1);
+  X = Math.sqrt(-2 * Math.log(S) / S) * V1;
+  X = mean + Math.sqrt(variance) * X;
+  return X;
+}
+
 // "cartesian product" or "cross product"
 // get all permutations of applying values in array2 to values in array1 
 // given (['x', 'y'], [1, 2]);  // [['x', 1], ['x', 2], ['y', 1], ['y', 2]]
@@ -273,7 +294,6 @@ const newMatrix = (columns, rows) => {
 //      [7, 8, 9], //  [3, 6, 9],
 //    ]);
 const transposeMatrix = (matrix) => matrix[0].map((col, i) => matrix.map((row) => row[i]));
-
 
 // K-means clustering
 // https://github.com/simple-statistics/simple-statistics/blob/main/src/k_means_cluster.js
