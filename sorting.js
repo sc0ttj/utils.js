@@ -26,6 +26,7 @@ const descending = (a,b) => {
 
 // Sort strings according to the rules of the users current system locale.
 // Useful for local-aware sorting of non-English and non-latin, or UTF-8 strings. 
+// For available options, see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/Collator/Collator#options
 const stringsIntl = (a,b, opts = {}) => a.localeCompare(b, navigator.languages[0], opts);
 
 //
