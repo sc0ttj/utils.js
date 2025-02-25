@@ -39,7 +39,7 @@ const stringsIntl = (a,b, opts = {}) => a.localeCompare(b, navigator.languages[0
 //  const mostRecent = sortBy('date', 'desc');
 //  const sortedData = array.sort(mostRecent);
 const sortBy = (prop, order) => 
-  (a, b) => (order === 'desc') ? descending(a,b) : ascending(a,b);
+  (a, b) => (order === 'desc') ? descending(a[prop],b[prop]) : ascending(a[prop],b[prop]);
 
 // Returns a sort function that applies multiple sort functions, in the given order.
 //
