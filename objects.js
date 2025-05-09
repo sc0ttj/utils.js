@@ -85,36 +85,46 @@ const applyDefaults = (obj, defaults) => ({ ...defaults, ...obj });
 //      age:  val => typeof val === 'number' && val > 17,       // expect n is a number over 17
 //      list: arr => arr.every(val => typeof val === 'number'), // expect array containing numbers only
 //    };
-//    const errs = validate(obj, schema);                       // errs.length === 0
+//    const errs = validationErrors(obj, schema);               // errs.length === 0
 //
-const validate = (obj, schema) => {
-  const errs = [];
-  Object.keys(schema).forEach(key => {
-    const val = obj[key];
-    const type = typeof val;
-    const expectedType = schema[key].toLowerCase();
+function validationErrors(obj, schema) {
+  var errs = []
 
-    // if we have a function, it's a custom validator function, which should return true/false
-    if (typeof expectedType === 'function') {
-      if (schema[key](val) !== true) errs.push({ key, expected: true, got: schema[key](val) });
+  Object.entries(schema).forEach(item => {
+    var key = item[0]
+    var val = obj[key]
+
+    var keyType = typeof obj[key]
+    var expectedType = schema[key]
+
+    if (expectedType === "array") {
+      if (!Array.isArray(val)) {
+        errs.push({ key: key, expected: "array", got: keyType })
+      }
     }
-    else if (expectedType === 'array' && !Array.isArray(val)) {
-      errs.push({ key, expected: 'array', got: type });
-    }
-    // if we have a string, it should be the name of the expected type in the schema
-    else if (type !== expectedType.toLowerCase()) {
-      errs.push({ key, expected: schema[key], got: type });
-    }
+
     // if we have object, call validator on it
-    else if (type === 'object' && !Array.isArray(val)) {
-      errs = [...errs, ...validate(obj[key], schema[key])];
+    else if (keyType === "object" && !Array.isArray(val)) {
+      errs = [...errs, ...validator(obj[key], schema[key])]
     }
-  });
 
-  return errs;
+    // if we have a function, it's a custom validator func, should return true/false
+    else if (typeof expectedType === "function") {
+      if (!schema[key](val)) {
+        errs.push({ key: key, expected: true, got: false })
+      }
+    }
+
+    // if we have a string, it should be the name of the expected type in the schema
+    else if (keyType !== expectedType.toLowerCase()) {
+      errs.push({ key: key, expected: schema[key], got: keyType })
+    }
+  })
+  return errs
 }
 
-
+// TODO: fix the below to work with nested objects!
+//
 // Create a "safe" object, that is protected against prototype pollution,
 // sealed by default (no new props can be added), and that can optionally
 // validate any changes to itself against its given schema - changes are
@@ -132,53 +142,52 @@ const validate = (obj, schema) => {
 // myObj.age = 'foo'; // throws Error - wrong type according to the schema.
 // myObj.baz = 'foo'; // throws Error - the property 'baz' is unknown to the schema.
 //
-const safeObject = (data = {}, schema = undefined, sealed = true, frozen = false) => {
+var safeObject = (data = {}, schema = undefined, sealed = true, frozen = false) => {
   // create an object to return, with a null prototype, and also prevent
   // any changes to its prototype and constructor.
-  const obj = Object.create(null);
-  Object.freeze(obj.prototype);
-  Object.freeze(obj.__proto__);
-  Object.freeze(obj.constructor);
-
+  let obj = Object.create(null);
+  // hidden holder of the vars
+  const props = {};
   if (typeof schema !== 'object') {
     // no valid schema was provided, so just add stuff from `data` into `obj`
-    for (const [key, value] of Object.entries(data)) {
-      try {
-        obj[key] = value;
-      } catch (err) {
-        throw Error(err.msg);
-      }
+    if (frozen) {
+        Object.freeze(obj.prototype);
+        Object.freeze(obj.__proto__);
+        Object.freeze(obj.constructor);
     }
+    obj = { ...data };
+    return obj;
   }
   else if (typeof schema === 'object') {
     // for each property in the schema
-    for (const [key, val] of Object.entries(schema)) {
+    Object.keys(schema).forEach(key => {
+      const v = data[key];
+      props[key] = v;
+      console.log('key', key);
+      console.log('v', v);
       // 1. Whenever `obj[key]` changes, re-run a built-in validator that checks
       //    the value against what is expected in `schema[key]`.
       // 2. Only update `obj` if the new property or value is valid, according to
       //    `schema`, else, throw an error.
       Object.defineProperty(obj, key, {
-        enumerable: true,
-        configurable: true,
-        get() {
-          return obj[key];
-        },
-        set(value) {
-          // let's validate `value` against its entry in the schema.
-          const errs = validate({ [key]: value }, schema[key]);
-          if (errs.length > 0) {
-            errs.forEach(err => console.error(err));
-            throw Error(`Failed validation: ${key}`);
-          }
-          // we passed validation OK, so try to set the prop
-          try {
-            obj[key] = value;
-          } catch (err) {
-            throw Error(err.msg);
-          }
-        },
-      });
-    }
+          enumerable: true,
+          configurable: false,
+          get: function() {
+            return props[key];
+          },
+          set: function(val) {
+            const testObj = {};
+            testObj[key] = val;
+            
+            if (validationErrors(testObj, schema).length > 0) {
+              throw Error(`Failed validation: ${key}`);
+            }
+            // we passed validation OK, so try to set the prop
+            console.log(this, key, val);
+            props[key] = val;
+          },
+        });
+    });
   }
 
   // "Seal" the object
