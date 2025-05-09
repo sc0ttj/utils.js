@@ -162,6 +162,9 @@ const safeObject = (data = {}, schema = undefined, sealed = true, frozen = false
     // for each property in the schema
     Object.keys(schema).forEach(key => {
       const v = data[key];
+      //
+      // TODO: support nested Objects :if `v` is an Object, call `safeObject(v, schema[key])`
+      // (use proper type check to check if its an Object, not `typeof`)
       props[key] = v;
       // 1. Whenever `obj[key]` changes, re-run a built-in validator that checks
       //    the value against what is expected in `schema[key]`.
