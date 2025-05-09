@@ -142,12 +142,12 @@ function validationErrors(obj, schema) {
 // myObj.age = 'foo'; // throws Error - wrong type according to the schema.
 // myObj.baz = 'foo'; // throws Error - the property 'baz' is unknown to the schema.
 //
-var safeObject = (data = {}, schema = undefined, sealed = true, frozen = false) => {
+const safeObject = (data = {}, schema = undefined, sealed = true, frozen = false) => {
   // create an object to return, with a null prototype, and also prevent
   // any changes to its prototype and constructor.
   let obj = Object.create(null);
   // hidden holder of the vars
-  const props = {};
+  const props = Object.create(null);
   if (typeof schema !== 'object') {
     // no valid schema was provided, so just add stuff from `data` into `obj`
     if (frozen) {
@@ -163,8 +163,6 @@ var safeObject = (data = {}, schema = undefined, sealed = true, frozen = false) 
     Object.keys(schema).forEach(key => {
       const v = data[key];
       props[key] = v;
-      console.log('key', key);
-      console.log('v', v);
       // 1. Whenever `obj[key]` changes, re-run a built-in validator that checks
       //    the value against what is expected in `schema[key]`.
       // 2. Only update `obj` if the new property or value is valid, according to
@@ -172,18 +170,15 @@ var safeObject = (data = {}, schema = undefined, sealed = true, frozen = false) 
       Object.defineProperty(obj, key, {
           enumerable: true,
           configurable: false,
-          get: function() {
+          get() {
             return props[key];
           },
-          set: function(val) {
-            const testObj = {};
-            testObj[key] = val;
-            
-            if (validationErrors(testObj, schema).length > 0) {
+          set(val) {
+            // let's validate `value` against its entry in the schema.
+            if (validationErrors({ [key]: val }, schema).length > 0) {
               throw Error(`Failed validation: ${key}`);
             }
             // we passed validation OK, so try to set the prop
-            console.log(this, key, val);
             props[key] = val;
           },
         });
