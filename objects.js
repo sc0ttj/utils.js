@@ -91,14 +91,14 @@ const type = v => Array.isArray(v) ? 'array' : Object.prototype.toString.call(v)
 //    const errs = validationErrors(obj, schema);               // errs.length === 0
 //
 const validationErrors = (obj, schema) => {
-  var errs = []
+  let errs = []
 
   Object.entries(schema).sort().forEach(item => {
-    var key = item[0]
-    var val = obj[key]
+    const key = item[0]
+    const val = obj[key]
 
-    var keyType = type(obj[key])
-    var expectedType = schema[key]
+    const keyType = type(obj[key])
+    const expectedType = schema[key]
 
     if (expectedType === "array") {
       if (!Array.isArray(val)) {
