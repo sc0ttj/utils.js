@@ -108,7 +108,7 @@ const validationErrors = (obj, schema) => {
 
     // if we have object, call validator on it
     else if (keyType === "object" && !Array.isArray(val)) {
-      errs = [...errs, ...validator(obj[key], schema[key])]
+      errs = [...errs, ...validationErrors(obj[key], schema[key])]
     }
 
     // if we have a function, it's a custom validator func, should return true/false
