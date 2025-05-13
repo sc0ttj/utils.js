@@ -87,10 +87,10 @@ const applyDefaults = (obj, defaults) => ({ ...defaults, ...obj });
 //    };
 //    const errs = validationErrors(obj, schema);               // errs.length === 0
 //
-function validationErrors(obj, schema) {
+validationErrors = (obj, schema) => {
   var errs = []
 
-  Object.entries(schema).forEach(item => {
+  Object.entries(schema).sort().forEach(item => {
     var key = item[0]
     var val = obj[key]
 
@@ -123,12 +123,11 @@ function validationErrors(obj, schema) {
   return errs
 }
 
-// TODO: fix the below to work with nested objects!
-//
 // Create a "safe" object, that is protected against prototype pollution,
-// sealed by default (no new props can be added), and that can optionally
-// validate any changes to itself against its given schema - changes are
-// only allowed to the object if valid, according to the schema.
+// sorted in a stable way, sealed by default (no new props can be added), 
+// and that can optionally validate any changes to itself against its given 
+// schema - changes are only allowed to the object if valid, according to 
+// the schema.
 //
 // Usage:
 //
@@ -150,21 +149,23 @@ const safeObject = (data = {}, schema = undefined, sealed = true, frozen = false
   const props = Object.create(null);
   if (typeof schema !== 'object') {
     // no valid schema was provided, so just add stuff from `data` into `obj`
+    obj = { ...data };
     if (frozen) {
         Object.freeze(obj.prototype);
         Object.freeze(obj.__proto__);
         Object.freeze(obj.constructor);
     }
-    obj = { ...data };
     return obj;
   }
   else if (typeof schema === 'object') {
     // for each property in the schema
-    Object.keys(schema).forEach(key => {
-      const v = data[key];
-      //
-      // TODO: support nested Objects :if `v` is an Object, call `safeObject(v, schema[key])`
-      // (use proper type check to check if its an Object, not `typeof`)
+    Object.keys(schema).sort().forEach(key => {
+      let v = data[key];
+      if (isObj(v)) {
+          v = safeObject(v, schema[key], sealed, frozen);
+      }
+      // stable sorting of properties
+      delete props[key];
       props[key] = v;
       // 1. Whenever `obj[key]` changes, re-run a built-in validator that checks
       //    the value against what is expected in `schema[key]`.
@@ -178,8 +179,16 @@ const safeObject = (data = {}, schema = undefined, sealed = true, frozen = false
           },
           set(val) {
             // let's validate `value` against its entry in the schema.
-            if (validationErrors({ [key]: val }, schema).length > 0) {
-              throw Error(`Failed validation: ${key}`);
+            const errs = validationErrors({ [key]: val }, { [key]: schema[key] });
+            if (errs.length > 0) {
+              const errMsg = errs.map(({ key, expected, got}) => {
+                // List the schemas validator function name, or print the function itself if it's unnamed
+                const expectedType = typeof schema[key] === 'function'
+                  ? (schema[key].name === key ? '' + schema[key] : schema[key].name)
+                  : schema[key];
+                return `Error: property \`${key}\` expected ${expectedType}, but got ${val}.`;
+              }).join('\n');
+              throw Error(`Validation failed!\n\n ${errMsg}.\n`);
             }
             // we passed validation OK, so try to set the prop
             props[key] = val;
