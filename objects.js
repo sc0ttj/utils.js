@@ -166,6 +166,12 @@ const safeObject = (data = {}, schema = undefined, sealed = true, frozen = false
     // for each property in the schema
     Object.keys(schema).sort().forEach(key => {
       let v = data[key];
+      if (validationErrors({ [key]: v }, { [key]: schema[key] }).length > 0) {
+        const expectedType = typeof schema[key] === 'function'
+          ? (schema[key].name === key ? '' + schema[key] : schema[key].name)
+          : schema[key];
+        throw Error(`Error: "${key}: ${v}" doesn't match ${expectedType}`);
+      }
       if (isObj(v)) {
           v = safeObject(v, schema[key], sealed, frozen);
       }
