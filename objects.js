@@ -70,6 +70,9 @@ const cloneObj = obj => typeof structuredClone === 'function' ? structuredClone(
 const applyDefaults = (obj, defaults) => ({ ...defaults, ...obj });
 
 
+// More reliable type checking (see more in types.js)
+const type = v => Array.isArray(v) ? 'array' : Object.prototype.toString.call(v).slice(8, -1).toLowerCase();
+
 // Validate the given object against the given schema.
 // Returns an array of errors if the object fails validation.
 //
@@ -87,14 +90,14 @@ const applyDefaults = (obj, defaults) => ({ ...defaults, ...obj });
 //    };
 //    const errs = validationErrors(obj, schema);               // errs.length === 0
 //
-validationErrors = (obj, schema) => {
+const validationErrors = (obj, schema) => {
   var errs = []
 
   Object.entries(schema).sort().forEach(item => {
     var key = item[0]
     var val = obj[key]
 
-    var keyType = typeof obj[key]
+    var keyType = type(obj[key])
     var expectedType = schema[key]
 
     if (expectedType === "array") {
@@ -147,17 +150,19 @@ const safeObject = (data = {}, schema = undefined, sealed = true, frozen = false
   let obj = Object.create(null);
   // hidden holder of the vars
   const props = Object.create(null);
-  if (typeof schema !== 'object') {
+  if (type(schema) !== 'object') {
     // no valid schema was provided, so just add stuff from `data` into `obj`
-    obj = { ...data };
+    Object.keys(data).sort().forEach(key => {
+      obj[key] = data[key];
+    });
     if (frozen) {
-        Object.freeze(obj.prototype);
-        Object.freeze(obj.__proto__);
-        Object.freeze(obj.constructor);
+      Object.freeze(obj.prototype);
+      Object.freeze(obj.__proto__);
+      Object.freeze(obj.constructor);
     }
     return obj;
   }
-  else if (typeof schema === 'object') {
+  else if (type(schema) === 'object') {
     // for each property in the schema
     Object.keys(schema).sort().forEach(key => {
       let v = data[key];
