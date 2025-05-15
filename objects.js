@@ -145,6 +145,7 @@ const getErrorMsg = (key, val, schemaProp) => {
       let expectedType = typeof schemaProp === 'function'
         ? (schemaProp.name === key ? '' + schemaProp : schemaProp.name)
         : schemaProp;
+      // If it's an object, return the property in the object, not the object itself
       if (type(expectedType) === 'object') {
         expectedType = expectedType[key].name;
         if (type(val) === 'object') val = val[key];
