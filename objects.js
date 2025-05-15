@@ -126,6 +126,35 @@ const validationErrors = (obj, schema) => {
   return errs
 }
 
+// ...some helper functions for `safeObject` (see futher down)
+
+const freezeObject = o => {
+  Object.freeze(o.prototype);
+  Object.freeze(o.__proto__);
+  Object.freeze(o.constructor);
+  Object.freeze(o);
+};
+
+const getErrors = (key, val, schemaProp) => {
+  let errMsgs = null;
+  const errs = validationErrors({ [key]: val }, { [key]: schemaProp });
+  if (errs.length > 0) {
+    errMsgs = errs.map(({ key, expected, got}) => {
+      // List the schemas validator function name, or print the function itself if it's unnamed
+      let expectedType = typeof schemaProp === 'function'
+        ? (schemaProp.name === key ? '' + schemaProp : schemaProp.name)
+        : schemaProp;
+      // fix looking into objects (get the prop from the object, not the object itself)
+      if (type(expectedType) === 'object') {
+        expectedType = expectedType[key].name;
+        if (type(val) === 'object') val = val[key];
+      }
+      return `Error: property \`${key}\` expected ${expectedType}, but got ${val}.`;
+    }).join('\n');
+  }
+  return errMsgs;
+};
+
 // Create a "safe" object, that is protected against prototype pollution,
 // sorted in a stable way, sealed by default (no new props can be added), 
 // and that can optionally validate any changes to itself against its given 
@@ -145,33 +174,6 @@ const validationErrors = (obj, schema) => {
 // myObj.baz = 'foo'; // throws Error - the property 'baz' is unknown to the schema.
 //
 const safeObject = (data = {}, schema = undefined, sealed = true, frozen = false) => {
-  const freezeObject = o => {
-    Object.freeze(o.prototype);
-    Object.freeze(o.__proto__);
-    Object.freeze(o.constructor);
-    Object.freeze(o);
-  };
-  const getErrors = (key, val, schemaProp) => {
-    let errMsgs = null;
-    // let's validate `value` against its entry in the schema.
-    const errs = validationErrors({ [key]: val }, { [key]: schemaProp });
-    if (errs.length > 0) {
-      errMsgs = errs.map(({ key, expected, got}) => {
-        // List the schemas validator function name, or print the function itself if it's unnamed
-        let expectedType = typeof schemaProp === 'function'
-          ? (schemaProp.name === key ? '' + schemaProp : schemaProp.name)
-          : schemaProp;
-        if (type(expectedType) === 'object') {
-          expectedType = expectedType[key].name;
-          if (type(val) === 'object') val = val[key];
-        }
-        return `Error: property \`${key}\` expected ${expectedType}, but got ${val}.`;
-      }).join('\n');
-    }
-    return errMsgs;
-  };
-  // create an object to return, with a null prototype, and also prevent
-  // any changes to its prototype and constructor.
   let obj = Object.create(null);
   // hidden holder of the vars
   const props = Object.create(null);
@@ -228,6 +230,8 @@ const safeObject = (data = {}, schema = undefined, sealed = true, frozen = false
 
   return obj;
 };
+
+
 
 function deepClone(obj) {
 	if(Array.isArray(obj)){
