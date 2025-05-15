@@ -145,6 +145,31 @@ const validationErrors = (obj, schema) => {
 // myObj.baz = 'foo'; // throws Error - the property 'baz' is unknown to the schema.
 //
 const safeObject = (data = {}, schema = undefined, sealed = true, frozen = false) => {
+  const freezeObject = o => {
+    Object.freeze(o.prototype);
+    Object.freeze(o.__proto__);
+    Object.freeze(o.constructor);
+    Object.freeze(o);
+  };
+  const getErrors = (key, val, schemaProp) => {
+    let errMsgs = null;
+    // let's validate `value` against its entry in the schema.
+    const errs = validationErrors({ [key]: val }, { [key]: schemaProp });
+    if (errs.length > 0) {
+      errMsgs = errs.map(({ key, expected, got}) => {
+        // List the schemas validator function name, or print the function itself if it's unnamed
+        let expectedType = typeof schemaProp === 'function'
+          ? (schemaProp.name === key ? '' + schemaProp : schemaProp.name)
+          : schemaProp;
+        if (type(expectedType) === 'object') {
+          expectedType = expectedType[key].name;
+          if (type(val) === 'object') val = val[key];
+        }
+        return `Error: property \`${key}\` expected ${expectedType}, but got ${val}.`;
+      }).join('\n');
+    }
+    return errMsgs;
+  };
   // create an object to return, with a null prototype, and also prevent
   // any changes to its prototype and constructor.
   let obj = Object.create(null);
@@ -155,25 +180,17 @@ const safeObject = (data = {}, schema = undefined, sealed = true, frozen = false
     Object.keys(data).sort().forEach(key => {
       obj[key] = data[key];
     });
-    if (frozen) {
-      Object.freeze(obj.prototype);
-      Object.freeze(obj.__proto__);
-      Object.freeze(obj.constructor);
-    }
+    if (frozen) freezeObject(obj);
     return obj;
   }
   else if (type(schema) === 'object') {
     // for each property in the schema
     Object.keys(schema).sort().forEach(key => {
       let v = data[key];
-      if (validationErrors({ [key]: v }, { [key]: schema[key] }).length > 0) {
-        const expectedType = typeof schema[key] === 'function'
-          ? (schema[key].name === key ? '' + schema[key] : schema[key].name)
-          : schema[key];
-        throw Error(`Error: "${key}: ${v}" doesn't match ${expectedType}`);
-      }
+      const errMsg = getErrors(key, v, schema[key]);
+      if (errMsg) throw Error(`Validation failed!\n\n ${errMsg}.\n`);
       if (isObj(v)) {
-          v = safeObject(v, schema[key], sealed, frozen);
+        v = safeObject(v, schema[key], sealed, frozen);
       }
       // stable sorting of properties
       delete props[key];
@@ -189,18 +206,8 @@ const safeObject = (data = {}, schema = undefined, sealed = true, frozen = false
             return props[key];
           },
           set(val) {
-            // let's validate `value` against its entry in the schema.
-            const errs = validationErrors({ [key]: val }, { [key]: schema[key] });
-            if (errs.length > 0) {
-              const errMsg = errs.map(({ key, expected, got}) => {
-                // List the schemas validator function name, or print the function itself if it's unnamed
-                const expectedType = typeof schema[key] === 'function'
-                  ? (schema[key].name === key ? '' + schema[key] : schema[key].name)
-                  : schema[key];
-                return `Error: property \`${key}\` expected ${expectedType}, but got ${val}.`;
-              }).join('\n');
-              throw Error(`Validation failed!\n\n ${errMsg}.\n`);
-            }
+            const errMsg = getErrors(key, val, schema[key]);
+            if (errMsg) throw Error(`Validation failed!\n\n ${errMsg}.\n`);
             // we passed validation OK, so try to set the prop
             props[key] = val;
           },
@@ -217,11 +224,10 @@ const safeObject = (data = {}, schema = undefined, sealed = true, frozen = false
   // "Freeze" the object
   // Prevent extensions (new properties), deletions, and make existing properties non-writable and
   // non-configurable. More simply - a frozen object cannot be changed at all.
-  if (frozen === true) Object.freeze(obj);
+  if (frozen) freezeObject(obj);
 
   return obj;
 };
-
 
 function deepClone(obj) {
 	if(Array.isArray(obj)){
