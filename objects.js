@@ -174,7 +174,7 @@ const getErrors = (key, val, schemaProp) => {
 // myObj.baz = 'foo'; // throws Error - the property 'baz' is unknown to the schema.
 //
 const safeObject = (data = {}, schema = undefined, sealed = true, frozen = false) => {
-  let obj = Object.create(null);
+  const obj = Object.create(null);
   // hidden holder of the vars
   const props = Object.create(null);
   if (type(schema) !== 'object') {
