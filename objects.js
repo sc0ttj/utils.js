@@ -135,8 +135,9 @@ const freezeObject = o => {
   Object.freeze(o);
 };
 
-const getErrors = (key, val, schemaProp) => {
+const getErrorMsg = (key, val, schemaProp) => {
   let errMsgs = null;
+  // let's validate `value` against its entry in the schema.
   const errs = validationErrors({ [key]: val }, { [key]: schemaProp });
   if (errs.length > 0) {
     errMsgs = errs.map(({ key, expected, got}) => {
@@ -144,7 +145,6 @@ const getErrors = (key, val, schemaProp) => {
       let expectedType = typeof schemaProp === 'function'
         ? (schemaProp.name === key ? '' + schemaProp : schemaProp.name)
         : schemaProp;
-      // fix looking into objects (get the prop from the object, not the object itself)
       if (type(expectedType) === 'object') {
         expectedType = expectedType[key].name;
         if (type(val) === 'object') val = val[key];
@@ -155,11 +155,11 @@ const getErrors = (key, val, schemaProp) => {
   return errMsgs;
 };
 
-// Create a "safe" object, that is protected against prototype pollution,
-// sorted in a stable way, sealed by default (no new props can be added), 
-// and that can optionally validate any changes to itself against its given 
-// schema - changes are only allowed to the object if valid, according to 
-// the schema.
+
+// Create a "type safe" object, that is protected against prototype pollution,
+// sealed by default (no new props can be added), and that can optionally
+// validate any changes to itself against its given schema - changes are
+// only allowed to the object if valid, according to the schema.
 //
 // Usage:
 //
@@ -174,14 +174,14 @@ const getErrors = (key, val, schemaProp) => {
 // myObj.baz = 'foo'; // throws Error - the property 'baz' is unknown to the schema.
 //
 const safeObject = (data = {}, schema = undefined, sealed = true, frozen = false) => {
+  // Create object protected against prototype pollution
   const obj = Object.create(null);
-  // hidden holder of the vars
+  Object.freeze(obj.prototype);
+  // Create a hidden holder of the vars
   const props = Object.create(null);
+  // If no valid schema provided, just add `data` into `obj` and return it
   if (type(schema) !== 'object') {
-    // no valid schema was provided, so just add stuff from `data` into `obj`
-    Object.keys(data).sort().forEach(key => {
-      obj[key] = data[key];
-    });
+    Object.keys(data).sort().forEach(key => obj[key] = data[key]);
     if (frozen) freezeObject(obj);
     return obj;
   }
@@ -189,11 +189,11 @@ const safeObject = (data = {}, schema = undefined, sealed = true, frozen = false
     // for each property in the schema
     Object.keys(schema).sort().forEach(key => {
       let v = data[key];
-      const errMsg = getErrors(key, v, schema[key]);
+      // validate `v` against the schema before we set it
+      const errMsg = getErrorMsg(key, v, schema[key]);
       if (errMsg) throw Error(`Validation failed!\n\n ${errMsg}.\n`);
-      if (isObj(v)) {
-        v = safeObject(v, schema[key], sealed, frozen);
-      }
+      // recursively call safeObject on objects inside `obj`
+      if (isObj(v)) v = safeObject(v, schema[key], sealed, frozen);
       // stable sorting of properties
       delete props[key];
       props[key] = v;
@@ -208,7 +208,7 @@ const safeObject = (data = {}, schema = undefined, sealed = true, frozen = false
             return props[key];
           },
           set(val) {
-            const errMsg = getErrors(key, val, schema[key]);
+            const errMsg = getErrorMsg(key, val, schema[key]);
             if (errMsg) throw Error(`Validation failed!\n\n ${errMsg}.\n`);
             // we passed validation OK, so try to set the prop
             props[key] = val;
@@ -230,7 +230,6 @@ const safeObject = (data = {}, schema = undefined, sealed = true, frozen = false
 
   return obj;
 };
-
 
 
 function deepClone(obj) {
