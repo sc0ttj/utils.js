@@ -69,7 +69,8 @@ const cloneObj = obj => typeof structuredClone === 'function' ? structuredClone(
 //
 // - some more care would be needed if you need to handle Arrays
 // - note that `structuredClone` still requires you to do prototype assignment for classed/prototyped objects - that doesn't come free.
-// Also see:
+// Also see better alternatives:
+// - https://github.com/fastify/deepmerge
 // - https://github.com/jonschlinkert/merge-deep
 // - https://github.com/TehShrike/deepmerge
 const deepMerge = (target, source) {
