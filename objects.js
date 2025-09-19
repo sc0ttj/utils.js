@@ -65,12 +65,30 @@ function mapValues(obj, fn) {
 // clone the given object, return the cloned object
 const cloneObj = obj => typeof structuredClone === 'function' ? structuredClone(obj) : JSON.parse(JSON.stringify(obj));
 
+// Deep merge two objects.
+//
+// - some more care would be needed if you need to handle Arrays
+// - note that `structuredClone` still requires you to do prototype assignment for classed/prototyped objects - that doesn't come free.
+// Also see:
+// - https://github.com/jonschlinkert/merge-deep
+// - https://github.com/TehShrike/deepmerge
+const deepMerge = (target, source) {
+  const result = { ...target, ...source };
+  for (const key of Object.keys(result)) {
+    result[key] =
+      typeof target[key] == 'object' && typeof source[key] == 'object'
+        ? deepMerge(target[key], source[key])
+        : structuredClone(result[key]);
+  }
+  return result;
+};
+
 
 // return a new object, based on obj, but with defaults added in
 const applyDefaults = (obj, defaults) => ({ ...defaults, ...obj });
 
 
-// More reliable type checking (see more in types.js)
+// A (somewhat) more reliable type checking (see more in types.js)
 const type = v => Array.isArray(v) ? 'array' : Object.prototype.toString.call(v).slice(8, -1).toLowerCase();
 
 // Validate the given object against the given schema.
