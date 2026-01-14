@@ -94,7 +94,7 @@ const domDiff = (c, t) => {
     for (let i = 0; i < ml; i++) {
       if (!cc[i]) c.appendChild(tc[i].cloneNode(true));
       else if (!tc[i]) cc[i].remove();
-      else morph(cc[i], tc[i]);
+      else domDiff(cc[i], tc[i]);
     }
 
     return true;
