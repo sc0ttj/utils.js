@@ -53,3 +53,58 @@ const urlRedirect = url => location.href = url;
 
 const stripHtml = html => (new DOMParser().parseFromString(html, 'text/html')).body.textContent || ''
 
+
+
+/**
+ * Fast, in-place DOM diffing with innerHTML fallback.
+ * 
+ * @param {Node} c - Current DOM node (to be updated)
+ * @param {Node} t - Target DOM node (source of truth)
+ * @returns {boolean} - Success status
+ */
+const domDiff = (c, t) => {
+  try {
+    // 1. Tag/Type mismatch: Replace entirely
+    if (c.nodeType !== t.nodeType || c.tagName !== t.tagName) {
+      c.replaceWith(t.cloneNode(true));
+      return true;
+    }
+
+    // 2. Text/Comment nodes: Update content
+    if (c.nodeType === 3 || c.nodeType === 8) {
+      if (c.textContent !== t.textContent) c.textContent = t.textContent;
+      return true;
+    }
+
+    // 3. Diff Attributes
+    const ca = c.attributes, ta = t.attributes;
+    for (let i = ca.length - 1; i >= 0; i--) {
+      const n = ca[i].name;
+      if (!t.hasAttribute(n)) c.removeAttribute(n);
+    }
+    for (let i = 0; i < ta.length; i++) {
+      const { name: n, value: v } = ta[i];
+      if (c.getAttribute(n) !== v) c.setAttribute(n, v);
+    }
+
+    // 4. Diff Children
+    const cc = Array.from(c.childNodes), tc = Array.from(t.childNodes);
+    const ml = Math.max(cc.length, tc.length);
+
+    for (let i = 0; i < ml; i++) {
+      if (!cc[i]) c.appendChild(tc[i].cloneNode(true));
+      else if (!tc[i]) cc[i].remove();
+      else morph(cc[i], tc[i]);
+    }
+
+    return true;
+  } catch (e) {
+    // 5. Fallback: If diffing fails (e.g. protected DOM or restricted writes), use innerHTML
+    try {
+      c.innerHTML = t.innerHTML;
+      return true;
+    } catch (err) {
+      return false;
+    }
+  }
+};
