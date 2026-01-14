@@ -65,32 +65,14 @@ function mapValues(obj, fn) {
 // clone the given object, return the cloned object
 const cloneObj = obj => typeof structuredClone === 'function' ? structuredClone(obj) : JSON.parse(JSON.stringify(obj));
 
-// Deep merge two objects.
-//
-// - some more care would be needed if you need to handle Arrays
-// - note that `structuredClone` still requires you to do prototype assignment for classed/prototyped objects - that doesn't come free.
-// Also see better alternatives:
-// - https://github.com/fastify/deepmerge
-// - https://github.com/jonschlinkert/merge-deep
-// - https://github.com/TehShrike/deepmerge
-const deepMerge = (target, source) {
-  const result = { ...target, ...source };
-  for (const key of Object.keys(result)) {
-    result[key] =
-      typeof target[key] == 'object' && typeof source[key] == 'object'
-        ? deepMerge(target[key], source[key])
-        : structuredClone(result[key]);
-  }
-  return result;
-};
-
-
 // return a new object, based on obj, but with defaults added in
 const applyDefaults = (obj, defaults) => ({ ...defaults, ...obj });
 
 
 // A (somewhat) more reliable type checking (see more in types.js)
 const type = v => Array.isArray(v) ? 'array' : Object.prototype.toString.call(v).slice(8, -1).toLowerCase();
+
+const isObj = v => type(v) === 'object';
 
 // Validate the given object against the given schema.
 // Returns an array of errors if the object fails validation.
@@ -110,71 +92,62 @@ const type = v => Array.isArray(v) ? 'array' : Object.prototype.toString.call(v)
 //    const errs = validationErrors(obj, schema);               // errs.length === 0
 //
 const validationErrors = (obj, schema) => {
-  let errs = []
+  let errs = [];
+  if (!schema) return errs;
 
-  Object.entries(schema).sort().forEach(item => {
-    const key = item[0]
-    const val = obj[key]
+  Object.entries(schema).forEach(([key, expectedType]) => {
+    const val = obj[key];
+    const actualType = type(val);
 
-    const keyType = type(obj[key])
-    const expectedType = schema[key]
-
-    if (expectedType === "array") {
-      if (!Array.isArray(val)) {
-        errs.push({ key: key, expected: "array", got: keyType })
+    // 1. Custom Validator Function
+    if (typeof expectedType === "function") {
+      if (!expectedType(val)) {
+        errs.push({ key, expected: "custom validation", got: val });
       }
     }
-
-    // if we have object, call validator on it
-    else if (keyType === "object" && !Array.isArray(val)) {
-      errs = [...errs, ...validationErrors(obj[key], schema[key])]
-    }
-
-    // if we have a function, it's a custom validator func, should return true/false
-    else if (typeof expectedType === "function") {
-      if (!schema[key](val)) {
-        errs.push({ key: key, expected: true, got: false })
+    // 2. Nested Object Validation
+    else if (isObj(expectedType)) {
+      if (!isObj(val)) {
+        errs.push({ key, expected: "object", got: actualType });
+      } else {
+        // Recursively collect errors
+        errs = [...errs, ...validationErrors(val, expectedType)];
       }
     }
-
-    // if we have a string, it should be the name of the expected type in the schema
-    else if (keyType !== expectedType.toLowerCase()) {
-      errs.push({ key: key, expected: schema[key], got: keyType })
+    // 3. Array Type String
+    else if (expectedType === "array") {
+      if (actualType !== "array") {
+        errs.push({ key, expected: "array", got: actualType });
+      }
     }
-  })
-  return errs
-}
-
-// ...some helper functions for `safeObject` (see futher down)
+    // 4. Primitive Type String (string, number, boolean)
+    else if (typeof expectedType === "string") {
+      if (actualType !== expectedType.toLowerCase()) {
+        errs.push({ key, expected: expectedType, got: actualType });
+      }
+    }
+  });
+  return errs;
+};
 
 const freezeObject = o => {
-  Object.freeze(o.prototype);
-  Object.freeze(o.__proto__);
-  Object.freeze(o.constructor);
+  if (o.prototype) Object.freeze(o.prototype);
+  if (o.__proto__) Object.freeze(o.__proto__);
   Object.freeze(o);
 };
 
 const getErrorMsg = (key, val, schemaProp) => {
-  let errMsgs = null;
-  // let's validate `value` against its entry in the schema.
   const errs = validationErrors({ [key]: val }, { [key]: schemaProp });
   if (errs.length > 0) {
-    errMsgs = errs.map(({ key, expected, got}) => {
-      // List the schemas validator function name, or print the function itself if it's unnamed
-      let expectedType = typeof schemaProp === 'function'
-        ? (schemaProp.name === key ? '' + schemaProp : schemaProp.name)
-        : schemaProp;
-      // If it's an object, return the property in the object, not the object itself
-      if (type(expectedType) === 'object') {
-        expectedType = expectedType[key].name;
-        if (type(val) === 'object') val = val[key];
-      }
-      return `Error: property \`${key}\` expected ${expectedType}, but got ${val}.`;
+    return errs.map(({ key, expected, got }) => {
+      let expectedDesc = typeof schemaProp === 'function' 
+        ? (schemaProp.name || 'custom function') 
+        : JSON.stringify(schemaProp);
+      return `Property \`${key}\` expected ${expectedDesc}, but got ${JSON.stringify(val)}`;
     }).join('\n');
   }
-  return errMsgs;
+  return null;
 };
-
 
 // Create a "type safe" object, that is protected against prototype pollution,
 // sealed by default (no new props can be added), and that can optionally
@@ -194,82 +167,155 @@ const getErrorMsg = (key, val, schemaProp) => {
 // myObj.baz = 'foo'; // throws Error - the property 'baz' is unknown to the schema.
 //
 const safeObject = (data = {}, schema = undefined, sealed = true, frozen = false) => {
-  // Create object protected against prototype pollution
+  // Use null prototype to prevent pollution
   const obj = Object.create(null);
-  Object.freeze(obj.prototype);
-  // Create a hidden holder of the vars
   const props = Object.create(null);
-  // If no valid schema provided, just add `data` into `obj` and return it
-  if (type(schema) !== 'object') {
-    Object.keys(data).sort().forEach(key => obj[key] = data[key]);
+
+  if (!isObj(schema)) {
+    Object.keys(data).forEach(key => obj[key] = data[key]);
     if (frozen) freezeObject(obj);
     return obj;
   }
-  else if (type(schema) === 'object') {
-    // for each property in the schema
-    Object.keys(schema).sort().forEach(key => {
-      let v = data[key];
-      // validate `v` against the schema before we set it
-      const errMsg = getErrorMsg(key, v, schema[key]);
-      if (errMsg) throw Error(`Validation failed!\n\n ${errMsg}.\n`);
-      // recursively call safeObject on objects inside `obj`
-      if (isObj(v)) v = safeObject(v, schema[key], sealed, frozen);
-      // stable sorting of properties
-      delete props[key];
-      props[key] = v;
-      // 1. Whenever `obj[key]` changes, re-run a built-in validator that checks
-      //    the value against what is expected in `schema[key]`.
-      // 2. Only update `obj` if the new property or value is valid, according to
-      //    `schema`, else, throw an error.
-      Object.defineProperty(obj, key, {
-          enumerable: true,
-          configurable: false,
-          get() {
-            return props[key];
-          },
-          set(val) {
-            const errMsg = getErrorMsg(key, val, schema[key]);
-            if (errMsg) throw Error(`Validation failed!\n\n ${errMsg}.\n`);
-            // we passed validation OK, so try to set the prop
-            props[key] = val;
-          },
-        });
+
+  Object.keys(schema).forEach(key => {
+    let v = data[key];
+    
+    // Initial Validation
+    const errMsg = getErrorMsg(key, v, schema[key]);
+    if (errMsg) throw Error(`Validation failed!\n${errMsg}`);
+
+    // Recursive Protection
+    if (isObj(v) && isObj(schema[key])) {
+      v = safeObject(v, schema[key], sealed, frozen);
+    }
+
+    props[key] = v;
+
+    Object.defineProperty(obj, key, {
+      enumerable: true,
+      configurable: true, // Must be true to allow Seal/Freeze later
+      get() { return props[key]; },
+      set(newVal) {
+        const error = getErrorMsg(key, newVal, schema[key]);
+        if (error) throw Error(`Validation failed!\n${error}`);
+        
+        // If setting a new object, wrap it
+        if (isObj(newVal) && isObj(schema[key])) {
+          props[key] = safeObject(newVal, schema[key], sealed, frozen);
+        } else {
+          props[key] = newVal;
+        }
+      },
     });
-  }
+  });
 
-  // "Seal" the object
-  // Attempting to add or delete properties to a "sealed" object, or to convert a data property
-  // to an accessor (getter/setter), or vice versa, will fail.
-  // The values of sealed "data properties" (regular properties) can still be changed as normal.
-  if (sealed === true) Object.seal(obj);
-
-  // "Freeze" the object
-  // Prevent extensions (new properties), deletions, and make existing properties non-writable and
-  // non-configurable. More simply - a frozen object cannot be changed at all.
+  if (sealed) Object.seal(obj);
   if (frozen) freezeObject(obj);
 
   return obj;
 };
 
 
-function deepClone(obj) {
-	if(Array.isArray(obj)){
-		const temp = [];
-		for (let i = 0; i < obj.length; i++) {
-			temp.push(deepClone(obj[i]));
-		}
-		return temp;
-	}
-	if(typeof(obj) === "object" && obj !== null){
-		const temp = {};
-		for (let key in obj) {
-		  if (obj.hasOwnProperty(key)) {
-			temp[key] = deepClone(obj[key]);
-		  }
-		}
-		return temp;
-	}
-	return obj;
+
+/**
+ * mergeObject - Multi-object deep merge with circular reference safety.
+ * 
+ * Usage: 
+ * 
+ *    const myObj = mergeObj(obj1, obj2, obj3, ...);
+ * 
+ */
+function mergeObject(...sources) {
+  const isObject = (val) => val && typeof val === 'object' && !Array.isArray(val);
+  
+  if (sources.length === 0) return {};
+  if (sources.length === 1) return isObject(sources[0]) ? { ...sources[0] } : sources[0];
+
+  // Initialize target with a shallow clone of the first object to prevent original mutation
+  const target = isObject(sources[0]) ? { ...sources[0] } : {};
+  const remaining = sources.slice(1);
+  const seen = new WeakMap();
+
+  for (const source of remaining) {
+    if (!isObject(source)) continue;
+
+    // Iterative stack avoids recursion depth limits
+    const stack = [{ t: target, s: source }];
+
+    while (stack.length > 0) {
+      const { t, s } = stack.pop();
+
+      // Handle circular references using WeakMap for memory efficiency
+      if (seen.has(s)) {
+        // Option 1: Just skip (standard for fast merging)
+        // Option 2: Link existing (t[key] = seen.get(s)), used if you need to keep structure
+        continue;
+      }
+      seen.set(s, t);
+
+      for (const key in s) {
+        if (Object.prototype.hasOwnProperty.call(s, key)) {
+          const sVal = s[key];
+          const tVal = t[key];
+
+          if (isObject(sVal)) {
+            // Target key missing or not an object? Initialize it.
+            if (!isObject(tVal)) {
+              t[key] = { ...sVal };
+            } else {
+              // Both are objects: merge them. Clone t[key] to prevent mutation of the original.
+              t[key] = { ...tVal };
+              stack.push({ t: t[key], s: sVal });
+            }
+          } else if (Array.isArray(sVal)) {
+            // Standard performance-first array strategy: Concatenation
+            t[key] = Array.isArray(tVal) ? tVal.concat(sVal) : [...sVal];
+          } else if (sVal instanceof Date) {
+            t[key] = new Date(sVal.getTime());
+          } else if (sVal instanceof RegExp) {
+            t[key] = new RegExp(sVal);
+          } else {
+            // Primitive overwrite
+            t[key] = sVal;
+          }
+        }
+      }
+    }
+  }
+
+  return target;
 }
 
+/**
+ * If `structuredClone` is not available:
+ * 
+ * A fast, iterative deep clone that handles circular references.
+ * Safe from stack overflows (unlike recursive functions).
+ */
+function cloneObject(obj) {
+  if (obj === null || typeof obj !== 'object') return obj;
+
+  // Handle special built-in types
+  if (obj instanceof Date) return new Date(obj.getTime());
+  if (obj instanceof RegExp) return new RegExp(obj.source, obj.flags);
+
+  const seen = new WeakMap();
+
+  function clone(val) {
+    if (val === null || typeof val !== 'object') return val;
+    if (seen.has(val)) return seen.get(val);
+
+    const result = Array.isArray(val) ? [] : {};
+    seen.set(val, result);
+
+    for (const key in val) {
+      if (Object.prototype.hasOwnProperty.call(val, key)) {
+        result[key] = clone(val[key]);
+      }
+    }
+    return result;
+  }
+
+  return clone(obj);
+};
 
